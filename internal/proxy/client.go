@@ -129,6 +129,23 @@ func (c *Client) Mod(ctx context.Context, modulePath, resolvedVersion string) (_
 	return b, nil
 }
 
+// Search makes a search request to $GOPROXY/search?q=<query> and returns the raw result
+func (c *Client) Search(ctx context.Context, query string) (_ []byte, err error) {
+	defer derrors.WrapStack(&err, "proxy.Client.Search(%q)", query)
+
+	u := fmt.Sprintf("%s/search?q=%s", c.url, query)
+	var data []byte
+	err = c.executeRequest(ctx, u, func(body io.Reader) error {
+		var err error
+		data, err = ioutil.ReadAll(body)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
 // Zip makes a request to $GOPROXY/<modulePath>/@v/<resolvedVersion>.zip and
 // transforms that data into a *zip.Reader. <resolvedVersion> must have already
 // been resolved by first making a request to

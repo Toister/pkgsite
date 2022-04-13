@@ -5,9 +5,11 @@
 package frontend
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"path"
 	"regexp"
@@ -23,6 +25,8 @@ import (
 	"golang.org/x/pkgsite/internal"
 	"golang.org/x/pkgsite/internal/derrors"
 	"golang.org/x/pkgsite/internal/experiment"
+	"golang.org/x/pkgsite/internal/fetch"
+	"golang.org/x/pkgsite/internal/fetchdatasource"
 	"golang.org/x/pkgsite/internal/log"
 	"golang.org/x/pkgsite/internal/middleware"
 	"golang.org/x/pkgsite/internal/postgres"
@@ -37,6 +41,10 @@ import (
 func (s *Server) serveSearch(w http.ResponseWriter, r *http.Request, ds internal.DataSource) error {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		return &serverError{status: http.StatusMethodNotAllowed}
+	}
+	fds, ok := ds.(*fetchdatasource.FetchDataSource)
+	if ok {
+		return serveSearchFromProxy(w, r, fds)
 	}
 	db, ok := ds.(*postgres.DB)
 	if !ok {
@@ -200,6 +208,24 @@ type SearchResult struct {
 type subResult struct {
 	Heading string
 	Links   []link
+}
+
+func serveSearchFromProxy(w http.ResponseWriter, r *http.Request, fds *fetchdatasource.FetchDataSource) error {
+	ctx := r.Context()
+	resPage, err := fds.Search(ctx, rawSearchQuery(r))
+	if err == fetch.ErrUnsupportedSearch {
+		return datasourceNotSupportedErr()
+	}
+	if err != nil {
+		log.Errorf(ctx, "error fetching search page")
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil
+	}
+	if _, err := io.Copy(w, bytes.NewReader(resPage)); err != nil {
+		log.Errorf(ctx, "Error copying search buffer to ResponseWriter: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+	return nil
 }
 
 // fetchSearchPage fetches data matching the search query from the database and

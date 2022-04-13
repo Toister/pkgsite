@@ -39,6 +39,9 @@ type ModuleGetter interface {
 	// Mod returns the contents of the module's go.mod file.
 	Mod(ctx context.Context, path, version string) ([]byte, error)
 
+	// Search performs a search with the detailed query
+	Search(ctx context.Context, query string) ([]byte, error)
+
 	// ContentDir returns an FS for the module's contents. The FS should match the
 	// format of a module zip file's content directory. That is the
 	// "<module>@<resolvedVersion>" directory that all module zips are expected
@@ -60,6 +63,8 @@ type ModuleGetter interface {
 	String() string
 }
 
+var ErrUnsupportedSearch = errors.New("search unsupported for this module getter")
+
 type proxyModuleGetter struct {
 	prox *proxy.Client
 	src  *source.Client
@@ -77,6 +82,11 @@ func (g *proxyModuleGetter) Info(ctx context.Context, path, version string) (*pr
 // Mod returns the contents of the module's go.mod file.
 func (g *proxyModuleGetter) Mod(ctx context.Context, path, version string) ([]byte, error) {
 	return g.prox.Mod(ctx, path, version)
+}
+
+// Search performs a search with the detailed query
+func (g *proxyModuleGetter) Search(ctx context.Context, query string) ([]byte, error) {
+	return g.prox.Search(ctx, query)
 }
 
 // ContentDir returns an FS for the module's contents. The FS should match the format
@@ -171,6 +181,11 @@ func (g *directoryModuleGetter) Mod(ctx context.Context, path, version string) (
 		return []byte(fmt.Sprintf("module %s\n", g.modulePath)), nil
 	}
 	return data, err
+}
+
+// Search performs a search with the detailed query
+func (g *directoryModuleGetter) Search(ctx context.Context, query string) ([]byte, error) {
+	return nil, ErrUnsupportedSearch
 }
 
 // ContentDir returns an fs.FS for the module's contents.
@@ -279,6 +294,11 @@ func (g *fsProxyModuleGetter) Mod(ctx context.Context, path, vers string) (_ []b
 	}
 	f.Close()
 	return g.readFile(path, vers, "mod")
+}
+
+// Search performs a search with the detailed query
+func (g *fsProxyModuleGetter) Search(ctx context.Context, query string) ([]byte, error) {
+	return nil, ErrUnsupportedSearch
 }
 
 // ContentDir returns an fs.FS for the module's contents.

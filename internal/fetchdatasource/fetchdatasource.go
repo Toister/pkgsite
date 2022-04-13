@@ -243,6 +243,24 @@ func (ds *FetchDataSource) GetUnit(ctx context.Context, um *internal.UnitMeta, f
 	return &u2, nil
 }
 
+// GetUnit returns information about a unit. Both the module path and package
+// path must be known.
+func (ds *FetchDataSource) Search(ctx context.Context, query string) (_ []byte, err error) {
+	defer derrors.Wrap(&err, "FetchDataSource.Search(%q)", query)
+
+	for _, g := range ds.opts.Getters {
+		res, err := g.Search(ctx, query)
+		if err == fetch.ErrUnsupportedSearch {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		return res, nil
+	}
+	return nil, fetch.ErrUnsupportedSearch
+}
+
 // findUnit returns the unit with the given path in m, or nil if none.
 func findUnit(m *internal.Module, path string) *internal.Unit {
 	for _, u := range m.Units {
